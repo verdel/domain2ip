@@ -114,7 +114,7 @@ def reconfigure_squid(args):
         copy(os.path.join(args.path,'url.txt'),args.redirector_path)
         subprocess.call(["/usr/sbin/squid3", "-k", "reconfigure"])
 
-def iproute(operation, ip, gateway):
+def iproute(operation, ip, gateway=None):
     if(operation == 'remove'):
         subprocess.call(["ip", "r", "del", ip])
     elif(operation == 'update'):
