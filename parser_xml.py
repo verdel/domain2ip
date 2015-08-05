@@ -105,7 +105,7 @@ def add_routes(args):
             iproute('remove', item)
 
     for item in ips:
-        iproute('update', item)
+        iproute('update', item, args.gateway)
     
     export_to_file(ips, os.path.join(args.path,'ip.txt.old'))
 
@@ -114,11 +114,11 @@ def reconfigure_squid(args):
         copy(os.path.join(args.path,'url.txt'),args.redirector_path)
         subprocess.call(["/usr/sbin/squid3", "-k", "reconfigure"])
 
-def iproute(operation, ip):
+def iproute(operation, ip, gateway):
     if(operation == 'remove'):
         subprocess.call(["ip", "r", "del", ip])
     elif(operation == 'update'):
-        subprocess.call(["ip", "r", "replace", "via", ip])
+        subprocess.call(["ip", "r", "replace", ip, "via", gateway])
 
 if __name__ == "__main__":
     args = cli()
@@ -130,7 +130,7 @@ if __name__ == "__main__":
             reconfigure_squid(args)
 
         add_routes(args)
-        
+            
     
     else:
         sys.exit(1)
