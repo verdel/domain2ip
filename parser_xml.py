@@ -40,7 +40,7 @@ class AsyncResolver(object):
                     active_queries[query] = host
 
         def finished_resolving():
-            return len(host_queue) > 0
+            return len(host_queue) == 0
 
         while not finished_resolving():
             while host_queue and len(active_queries) < self.intensity:
@@ -122,9 +122,8 @@ def add_routes(args):
         ips_old = set(line.rstrip('\n') for line in open(os.path.join(args.path,'ip.txt.old')))
     else:
         ips_old = set()
-  
-    ips.update(resolve_domain(domains))
     
+    ips.update(resolve_domain(domains))
     remove_ips = ips_old.difference(ips)
     if(len(remove_ips) > 0 ):
         for item in remove_ips:
@@ -155,8 +154,7 @@ if __name__ == "__main__":
             move(os.path.join(args.path,'dump.xml'),os.path.join(args.path,'dump.xml.old'))
             reconfigure_squid(args)
 
-        add_routes(args)
-        end = time()            
+        add_routes(args)     
     
     else:
         sys.exit(1)
