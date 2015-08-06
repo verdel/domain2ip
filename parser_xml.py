@@ -9,17 +9,19 @@ from shutil import copy,move
 import subprocess
 import socket
 import sys
+from urlparse import urlparse
 
 
 class AsyncResolver(object):
-    def __init__(self, hosts, intensity=100):
+    def __init__(self, hosts, dns, intensity=100):
         """
         hosts: a list of hosts to resolve
         intensity: how many hosts to resolve at once
         """
         self.hosts = hosts
         self.intensity = intensity
-        self.adns = adns.init()
+        self.dns = dns
+        self.adns = adns.init(adns.iflags.noautosys,sys.stderr,"nameserver " + dns)
 
     def resolve(self):
         resolved_hosts = set()
@@ -38,6 +40,12 @@ class AsyncResolver(object):
                 elif answer[0] == 101: # CNAME
                     query = self.adns.submit(answer[1], adns.rr.A)
                     active_queries[query] = host
+                # else:
+                #     try:
+                #         adns.exception(answer[0])
+                #     except adns.Error, e:
+                #         description = e[1]
+                #         print "%s - %s" % (description,host)
 
         def finished_resolving():
             return len(host_queue) == 0
@@ -45,8 +53,13 @@ class AsyncResolver(object):
         while not finished_resolving():
             while host_queue and len(active_queries) < self.intensity:
                 host = host_queue.pop()
-                query = self.adns.submit(host, adns.rr.A)
-                active_queries[query] = host
+                
+                if not (host.startswith('http://') or host.startswith('https://')):
+                    host = '%s%s' % ('//', host)
+                host = urlparse(host)
+
+                query = self.adns.submit(host.netloc, adns.rr.A)
+                active_queries[query] = host.netloc
             collect_results()
 
         return resolved_hosts
@@ -74,7 +87,7 @@ def cli_progress(i, end_val, title='Progress', bar_length=20):
     sys.stdout.flush()
 
 def resolve_domain(hosts):
-    ar = AsyncResolver(hosts, intensity=500)
+    ar = AsyncResolver(hosts, dns = '8.8.8.8', intensity=500)
     resolved_hosts = ar.resolve()
     return resolved_hosts
 
