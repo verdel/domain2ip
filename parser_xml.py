@@ -79,13 +79,6 @@ def cli():
 
     return parser.parse_args()   
 
-def cli_progress(i, end_val, title='Progress', bar_length=20):
-    percent = float(i) / end_val
-    hashes = '#' * int(round(percent * bar_length))
-    spaces = ' ' * (bar_length - len(hashes))
-    sys.stdout.write("\r{0}: [{1}] {2}%".format(title, hashes + spaces, int(round(percent * 100))))
-    sys.stdout.flush()
-
 def resolve_domain(hosts):
     ar = AsyncResolver(hosts, dns = '8.8.8.8', intensity=500)
     resolved_hosts = ar.resolve()
@@ -93,14 +86,9 @@ def resolve_domain(hosts):
 
 def export_to_file(items, dstfile):
     with open(dstfile, 'w') as f:
-        count = 1
-        size = len(items)
         for item in items:
             if item is not None:
                 f.write(item.encode('UTF-8')+'\n')
-            if not args.silent_switch:
-                cli_progress(count, size, 'Write to file %s' % dstfile)
-                count = count + 1
 
 def parse_xml(args):
     parser = etree.XMLParser(encoding='cp1251')
