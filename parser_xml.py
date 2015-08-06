@@ -9,7 +9,6 @@ from shutil import copy,move
 import subprocess
 import socket
 import sys
-from time import time
 
 
 class AsyncResolver(object):
