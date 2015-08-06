@@ -1,25 +1,64 @@
 #!/usr/bin/env python
 
-import sys
-from lxml import etree
+import adns
 import argparse
-import socket
-import os.path
+from lxml import etree
 import os
+import os.path
 from shutil import copy,move
 import subprocess
+import socket
+import sys
+from time import time
+
+
+class AsyncResolver(object):
+    def __init__(self, hosts, intensity=100):
+        """
+        hosts: a list of hosts to resolve
+        intensity: how many hosts to resolve at once
+        """
+        self.hosts = hosts
+        self.intensity = intensity
+        self.adns = adns.init()
+
+    def resolve(self):
+        resolved_hosts = set()
+        active_queries = {}
+        host_queue = self.hosts
+
+        def collect_results():
+            for query in self.adns.completed():
+                answer = query.check()
+                host = active_queries[query]
+                del active_queries[query]
+                if answer[0] == 0:
+                    ips = answer[3]
+                    for ip in ips:
+                        resolved_hosts.add(ip)
+                elif answer[0] == 101: # CNAME
+                    query = self.adns.submit(answer[1], adns.rr.A)
+                    active_queries[query] = host
+
+        def finished_resolving():
+            return len(host_queue) > 0
+
+        while not finished_resolving():
+            while host_queue and len(active_queries) < self.intensity:
+                host = host_queue.pop()
+                query = self.adns.submit(host, adns.rr.A)
+                active_queries[query] = host
+            collect_results()
+
+        return resolved_hosts
 
 def cli():
     parser = argparse.ArgumentParser(description='Zapret list parser')
     
-    #parser_xml.add_argument('-f', '--file', required=True, help='input xml file', metavar='file', dest='inputfile')
-    #parser_xml.add_argument('-i', '--ip', nargs='?', default='ip.txt', help='output txt file with ip addresses', metavar='file', dest='ipfile')
-    #parser_xml.add_argument('-u', '--url', nargs='?', default='url.txt', help='output txt file with url addresses', metavar='file', dest='urlfile')
-    
     parser.add_argument('-d', required=True, help='path to directory with xml registry file', metavar='path', dest='path')
+    parser.add_argument('-r', default='/usr/local/rejik3/banlists/urls', help='path to redirector urls directory (default: /usr/local/rejik3/banlists/urls)', metavar='path', dest='redirector_path')
     parser.add_argument('-g', default='10.32.14.26', help='gateway ip address', metavar='ip', dest='gateway')    
-    parser.add_argument('-r', default='/usr/local/rejik3/banlists/urls', help='path to redirector urls directory', metavar='path', dest='redirector_path')
-    parser.add_argument('-p', action='store_false', default=True, help='remove http:// or https:// from url', dest='protocol_remove')    
+    parser.add_argument('-p', action='store_false', default=True, help='remove http:// or https:// from url (default: True)', dest='protocol_remove')    
     parser.add_argument('-s', '--silent', action='store_true', default=False, help='hide the output', dest='silent_switch')
     
     if len(sys.argv)==1:
@@ -35,18 +74,10 @@ def cli_progress(i, end_val, title='Progress', bar_length=20):
     sys.stdout.write("\r{0}: [{1}] {2}%".format(title, hashes + spaces, int(round(percent * 100))))
     sys.stdout.flush()
 
-def resolve_domain(d):
-    """
-    This method returns an array containing
-    one or more IP address strings that respond
-    as the given domain name
-    """
-    try:
-        data = socket.gethostbyname_ex(d)
-        ipx = data[2]
-        return ipx
-    except Exception:
-        return False
+def resolve_domain(hosts):
+    ar = AsyncResolver(hosts, intensity=500)
+    resolved_hosts = ar.resolve()
+    return resolved_hosts
 
 def export_to_file(items, dstfile):
     with open(dstfile, 'w') as f:
@@ -77,28 +108,24 @@ def parse_xml(args):
     export_to_file(urls, os.path.join(args.path,'url.txt'))
 
 def add_routes(args):
-    domains = set(line.rstrip('\n') for line in open(os.path.join(args.path,'url.txt')))
-    ips = set(line.rstrip('\n') for line in open(os.path.join(args.path,'ip.txt')))
     
-    if not args.silent_switch:
-        count = 1
-        size = len(domains)
-    
-    for domain in domains:        
-        resolve_ips = resolve_domain(domain)
-        if resolve_ips:
-            for ip in resolve_ips:
-                ips.add(ip)
-        
-        if not args.silent_switch:
-            cli_progress(count, size, 'Resolving domains')
-            count = count + 1
+    if(os.path.isfile(os.path.join(args.path,'url.txt'))):
+        domains = set(line.rstrip('\n') for line in open(os.path.join(args.path,'url.txt')))
+    else:
+        domains = set()
+
+    if(os.path.isfile(os.path.join(args.path,'ip.txt'))):
+        ips = set(line.rstrip('\n') for line in open(os.path.join(args.path,'ip.txt')))
+    else:
+        ips = set()
 
     if(os.path.isfile(os.path.join(args.path,'ip.txt.old'))):
         ips_old = set(line.rstrip('\n') for line in open(os.path.join(args.path,'ip.txt.old')))
     else:
         ips_old = set()
-
+  
+    ips.update(resolve_domain(domains))
+    
     remove_ips = ips_old.difference(ips)
     if(len(remove_ips) > 0 ):
         for item in remove_ips:
@@ -130,7 +157,7 @@ if __name__ == "__main__":
             reconfigure_squid(args)
 
         add_routes(args)
-            
+        end = time()            
     
     else:
         sys.exit(1)
