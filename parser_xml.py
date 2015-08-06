@@ -69,9 +69,9 @@ def cli():
     
     parser.add_argument('-d', required=True, help='path to directory with xml registry file', metavar='path', dest='path')
     parser.add_argument('-r', default='/usr/local/rejik3/banlists/urls', help='path to redirector urls directory (default: /usr/local/rejik3/banlists/urls)', metavar='path', dest='redirector_path')
-    parser.add_argument('-g', default='10.32.14.26', help='gateway ip address', metavar='ip', dest='gateway')    
+    parser.add_argument('-g', default='10.32.14.26', help='gateway ip address', metavar='ip', dest='gateway')
+    parser.add_argument('-s', default='8.8.8.8', help='dns resolver ip address', metavar='ip', dest='dns_server')    
     parser.add_argument('-p', action='store_false', default=True, help='remove http:// or https:// from url (default: True)', dest='protocol_remove')    
-    parser.add_argument('-s', '--silent', action='store_true', default=False, help='hide the output', dest='silent_switch')
     
     if len(sys.argv)==1:
         parser.print_help()
@@ -80,7 +80,7 @@ def cli():
     return parser.parse_args()   
 
 def resolve_domain(hosts):
-    ar = AsyncResolver(hosts, dns = '8.8.8.8', intensity=500)
+    ar = AsyncResolver(hosts, dns = dns_server, intensity=500)
     resolved_hosts = ar.resolve()
     return resolved_hosts
 
